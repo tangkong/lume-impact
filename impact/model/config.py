@@ -13,7 +13,8 @@ from impact.model.actions import (
     EleAction,
     HeaderAction,
     StatAction,
-    RunInfoAction,
+    RunInfoScalarAction,
+    RunInfoBoolAction,
     ParticleGroupAction,
 )
 
@@ -429,15 +430,29 @@ def _make_run_info_actions(impact: Any, config: RunInfoConfig) -> list[Action]:
         if not isinstance(enabled, bool) or not enabled:
             continue
         key_token = config.attrib_map.get(field_name, field_name)
-        actions.append(
-            RunInfoAction(
-                key=field_name,
-                name=config.pattern.format(key=key_token),
-                default_value=run_info_data.get(field_name),
-                unit=RUN_INFO_UNITS.get(field_name),
-                read_only=True,
+
+        # RUN_INFO_UNITS selectively excludes bool fields, which is what we want to catch
+        # hard code this for now
+        if field_name == "error":
+            actions.append(
+                RunInfoBoolAction(
+                    key=field_name,
+                    name=config.pattern.format(key=key_token),
+                    default_value=run_info_data.get(field_name),
+                    read_only=True,
+                )
             )
-        )
+        else:
+            actions.append(
+                RunInfoScalarAction(
+                    key=field_name,
+                    name=config.pattern.format(key=key_token),
+                    default_value=run_info_data.get(field_name),
+                    unit=RUN_INFO_UNITS.get(field_name),
+                    read_only=True,
+                )
+            )
+
     return actions
 
 

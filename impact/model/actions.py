@@ -7,10 +7,10 @@ from pydantic import model_validator
 
 from impact.impact import Impact
 from lume.actions import ReadOnlyActionMixin, WritableActionMixin
-from lume.variables import NDVariable, ParticleGroupVariable, ScalarVariable
+from lume.variables import BoolVariable, NDVariable, ParticleGroupVariable, ScalarVariable, StrVariable
 
 
-class EleAction(WritableActionMixin[Impact], ScalarVariable):
+class EleScalarAction(WritableActionMixin[Impact], ScalarVariable):
     """Maps an element attribute: ``impact.ele[ele_name][attribute]``."""
 
     ele_name: str
@@ -21,6 +21,23 @@ class EleAction(WritableActionMixin[Impact], ScalarVariable):
 
     def _set(self, simulator: Impact, value: Any) -> None:
         simulator.ele[self.ele_name][self.attribute] = value
+
+
+class EleStrAction(WritableActionMixin[Impact], StrVariable):
+    """Maps an element attribute: ``impact.ele[ele_name][attribute]``."""
+
+    ele_name: str
+    attribute: str
+
+    def _get(self, simulator: Impact) -> Any:
+        return simulator.ele[self.ele_name][self.attribute]
+
+    def _set(self, simulator: Impact, value: Any) -> None:
+        simulator.ele[self.ele_name][self.attribute] = value
+
+
+# Alias for laziness sake
+EleAction = EleScalarAction
 
 
 class HeaderAction(WritableActionMixin[Impact], ScalarVariable):
@@ -50,7 +67,17 @@ class StatAction(ReadOnlyActionMixin[Impact], NDVariable):
         return out
 
 
-class RunInfoAction(ReadOnlyActionMixin[Impact], ScalarVariable):
+class RunInfoScalarAction(ReadOnlyActionMixin[Impact], ScalarVariable):
+    """Maps a run_info entry: ``impact.output['run_info'][key]``. Read-only."""
+
+    key: str
+
+    def _get(self, simulator: Impact) -> Any:
+        return simulator.output["run_info"][self.key]
+
+
+
+class RunInfoBoolAction(ReadOnlyActionMixin[Impact], BoolVariable):
     """Maps a run_info entry: ``impact.output['run_info'][key]``. Read-only."""
 
     key: str

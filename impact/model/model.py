@@ -20,6 +20,7 @@ class LUMEImpactModel(InitialParticlesMixIn, FinalParticlesMixIn, ActionModel[Im
     ):
         super().__init__(simulator=impact, action_variables=actions)
         self.dummy_run = dummy_run
+        self._cached_state: dict[str, Any] = {}
 
     @property
     def impact(self) -> Impact:

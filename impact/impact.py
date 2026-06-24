@@ -509,6 +509,8 @@ class Impact(CommandWrapper):
 
         # Clear output
         self.output = {}
+        # Start a new run
+        self.finished = False
 
         # Autophase
         autophase_settings = self.autophase_bookkeeper()

@@ -56,6 +56,7 @@ class StatAction(ReadOnlyActionMixin[Impact], NDVariable):
     """Maps an output stat: ``impact.stat(stat_name)``. Read-only."""
 
     stat_name: str
+    dtype: np.dtype = np.dtype(np.float64)
 
     def _get(self, simulator: Impact) -> Any:
         arr = simulator.stat(self.stat_name)

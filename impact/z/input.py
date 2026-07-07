@@ -1366,6 +1366,40 @@ class ScaleMismatchParticle6DCoordinates(InputElement, element_id=-10):
     ptmis: float = 0.0
 
 
+class ExternalLinearMapKick(InputElement, element_id=-12):
+    """
+    Apply an instant kick using a 6x6 linear transfer map from an external file.
+
+    The map is read from ``fort.N``, where ``N`` is `file_id`. The file
+    contains the six rows of the matrix, one row per line. The matrix is
+    applied in ``(x [m], x' [rad], y [m], y' [rad], z [m], dp/p)``
+    coordinates.
+
+    Available in IMPACT-Z v2.7+.
+
+    Attributes
+    ----------
+    length : float
+        Unused.
+    steps : int
+        Unused.
+    file_id : int
+        The file ID N; the transfer matrix is read from ``fort.N``.
+    radius : float
+        Radius in meters (not used).
+    """
+
+    length: float = 0.0
+    steps: int = 0
+    file_id: int = pydantic.Field(
+        default=0,
+        validation_alias=pydantic.AliasChoices("file_id", "map_steps"),
+    )
+    type_id: Literal[-12] = -12
+
+    radius: float = 0.0
+
+
 class CollimateBeam(InputElement, element_id=-13):
     """
     Collimate the beam with transverse rectangular aperture sizes.
@@ -1429,6 +1463,72 @@ class ToggleSpaceCharge(InputElement, element_id=-14):
 
     unused: float = 0.0
     enable: float | bool = False
+
+
+class RotateBeamX(InputElement, element_id=-16):
+    """
+    Instantly rotate the beam about the horizontal x-axis.
+
+    Both positions and momenta are rotated, using the longitudinal momentum
+    of each particle.
+
+    Available in IMPACT-Z v2.7+.
+
+    Attributes
+    ----------
+    length : float
+        Unused.
+    steps : int
+        Unused.
+    map_steps : int
+        Unused.
+    radius : float
+        Radius in meters (not used).
+    angle : float
+        The rotation angle in radians (counter-clockwise for the beam, i.e.
+        clockwise for the reference coordinate system).
+    """
+
+    length: float = 0.0
+    steps: int = 0
+    map_steps: int = 0
+    type_id: Literal[-16] = -16
+
+    radius: float = 0.0
+    angle: float = 0.0
+
+
+class RotateBeamY(InputElement, element_id=-17):
+    """
+    Instantly rotate the beam about the vertical y-axis.
+
+    Both positions and momenta are rotated, using the longitudinal momentum
+    of each particle.
+
+    Available in IMPACT-Z v2.7+.
+
+    Attributes
+    ----------
+    length : float
+        Unused.
+    steps : int
+        Unused.
+    map_steps : int
+        Unused.
+    radius : float
+        Radius in meters (not used).
+    angle : float
+        The rotation angle in radians (counter-clockwise for the beam, i.e.
+        clockwise for the reference coordinate system).
+    """
+
+    length: float = 0.0
+    steps: int = 0
+    map_steps: int = 0
+    type_id: Literal[-17] = -17
+
+    radius: float = 0.0
+    angle: float = 0.0
 
 
 class RotateBeam(InputElement, element_id=-18):
@@ -1669,6 +1769,42 @@ class RfcavityStructureWakefield(InputElement, element_id=-41, has_input_file=Tr
         return self.enable_wakefield >= 10.0
 
 
+class ThinLensRFDeflector(InputElement, element_id=-44):
+    """
+    Apply a thin-lens RF deflecting cavity kick.
+
+    This is a transverse-longitudinal coupling (crab-cavity-like) kick: the
+    transverse momentum is kicked proportional to the longitudinal offset,
+    and the particle energy proportional to the transverse offset:
+    ``px [mc] += strength * z [m] * gamma*beta`` and
+    ``pt [mc^2] -= strength * x [m] * gamma`` (or ``y``/``py`` for vertical
+    deflection).
+
+    Available in IMPACT-Z v2.7+.
+
+    Attributes
+    ----------
+    length : float
+        Unused.
+    steps : int
+        Unused.
+    map_steps : int
+        Unused.
+    strength : float
+        The integrated deflecting strength in 1/m.
+    direction : float
+        Deflection direction switch: >= 0 for horizontal, < 0 for vertical.
+    """
+
+    length: float = 0.0
+    steps: int = 0
+    map_steps: int = 0
+    type_id: Literal[-44] = -44
+
+    strength: float = 0.0
+    direction: float = 0.0
+
+
 class EnergyModulation(InputElement, element_id=-52):
     """
     Input element: energy modulation (emulate laser heater).
@@ -1790,8 +1926,11 @@ AnyInputElement = Union[
     WritePhaseSpaceInfo,
     WriteSliceInfo,
     ScaleMismatchParticle6DCoordinates,
+    ExternalLinearMapKick,
     CollimateBeam,
     ToggleSpaceCharge,
+    RotateBeamX,
+    RotateBeamY,
     RotateBeam,
     BeamShift,
     BeamEnergySpread,
@@ -1799,6 +1938,7 @@ AnyInputElement = Union[
     IntegratorTypeSwitch,
     BeamKickerByRFNonlinearity,
     RfcavityStructureWakefield,
+    ThinLensRFDeflector,
     EnergyModulation,
     KickBeamUsingMultipole,
     HaltExecution,

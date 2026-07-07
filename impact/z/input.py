@@ -1228,7 +1228,12 @@ class Projection2D(InputElement, element_id=-5):
 
 class Density3D(InputElement, element_id=-6):
     """
-    Input element: 3D density.
+    Write the 3D density into file fort.8.
+
+    Warning: IMPACT-Z v2.7.1 does not actually read this element's
+    parameters before using them (a missing getparam call in
+    AccSimulator.f90), so the frame ranges applied are stale values from a
+    previously processed element. Treat the parameters below as the intent.
 
     Attributes
     ----------

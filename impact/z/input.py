@@ -222,8 +222,10 @@ class Quadrupole(InputElement, element_id=1, has_input_file=True):
         Number of "map steps". Each half-step involves computing a map for that
         half-element which is computed by numerical integration.
     k1 : float
-        The quadrupole strength, 1/m^2. (NOTE: the manual is actually wrong here, this
-        is not B1 in units of T/m)
+        The quadrupole strength. Its interpretation depends on `file_id`:
+        the magnetic field gradient B1 in T/m in the default mode
+        (`file_id` = 0 or > 0), or the MAD-style K1 = B1/(B rho) in 1/m^2
+        when `file_id` is between -10 and 0.
     file_id : float
         An ID for the input gradient file. Determines profile behavior:
         if greater than 0, a fringe field profile is read; if less than -10,
@@ -388,9 +390,9 @@ class Dipole(InputElement, element_id=4, has_input_file=True):
     e2 : float, optional
         Exit pole face angle [rad].
     entrance_curvature : float, optional
-        Curvature of entrance face [rad].
+        Curvature (1/radius) of entrance pole face [1/m].
     exit_curvature : float, optional
-        Curvature of exit face [rad].
+        Curvature (1/radius) of exit pole face [1/m].
     fint : float, optional
         Integrated fringe field K of entrance (Kf). Fringe field K of exit
         assumed to be equal (Kb = Kf).
@@ -535,9 +537,9 @@ class Wiggler(InputElement, element_id=6):
     wiggler_type : WigglerType, optional
         Wiggler type. Defaults to `WigglerType.planar`.
     max_field_strength : float, optional
-        The maximum strength of the magnetic field.  Units of T/m^n.
+        The maximum on-axis magnetic field, in Tesla.
     file_id : float, optional
-        File ID (unused?)
+        File ID for a read-in field profile.
     radius : float, optional
         Radius in meters.
     kx : float, optional
@@ -924,9 +926,9 @@ class TravelingWaveRFCavity(InputElement, element_id=106, has_input_file=True):
     rotation_error_x : float
         Rotation errors in x [rad].
     rotation_error_y : float
-        Rotation errors in x [rad].
+        Rotation errors in y [rad].
     rotation_error_z : float
-        Rotation errors in x [rad].
+        Rotation errors in z [rad].
     phase_diff : float
         Phase difference B and A (pi - beta * d).
     aperture_size_for_wakefield : float
@@ -1065,17 +1067,15 @@ class WriteFull(InputElement, element_id=-2, has_output_file=True):
         Unused.
     file_id : int
         The File ID.
-    unused_2 : float
-        Unused
     sample_frequency : int
         Write every Nth particle.
+    unused_2 : float
+        Unused
 
     Notes
     -----
     - The file written will not support N values of 5, 6, 24, 25, 26, 27, 29,
       30, or 32 when using Fortran code.
-    - The printed dataset uses sample frequency `10`, meaning every 10th
-      particle is output.
     - Particles recorded are dimensionless, in an IMPACT internal unit.
     - A positive sample frequency specifies magnitude in standard units; a
       negative implies adoption of the ImpactT format (z as delta z and pz as
@@ -1089,13 +1089,17 @@ class WriteFull(InputElement, element_id=-2, has_output_file=True):
         validation_alias=pydantic.AliasChoices("file_id", "map_steps"),
     )
     type_id: Literal[-2] = -2
-    unused_2: float = 0.0
     sample_frequency: int = 0
+    unused_2: float = 0.0
 
 
 class DensityProfileInput(InputElement, element_id=-3):
     """
-    Input element: density profile input parameters.
+    Write the accumulated density along R, X, and Y into files
+    RadDens.data, Xprof.data, and Yprof.data.
+
+    Note that IMPACT-Z v2.7 only reads `radius`, `xmax`, and `ymax`; the
+    momentum/longitudinal frame parameters are accepted but unused.
 
     Attributes
     ----------
@@ -1270,14 +1274,27 @@ class WritePhaseSpaceInfo(InputElement, element_id=-7):
     Input element: write the 6D phase space information and local computation
     domain information.
 
-    Writes to files fort.1000, fort.1001, fort.1002, ...,
-    fort.(1000+Nprocessor-1). This function is used for restart purposes.
+    Writes to files fort.(file_id), fort.(file_id+1), ...,
+    fort.(file_id+Nprocessor-1), one per processor (file_id is typically
+    1000). This function is used for restart purposes.
+
+    Attributes
+    ----------
+    length : float
+        Unused.
+    steps : int
+        Unused.
+    file_id : int
+        The base file ID; processor `rank` writes to fort.(file_id+rank).
     """
 
     # TODO unsupported
     length: float = 0.0
     steps: int = 0
-    map_steps: int = 0
+    file_id: int = pydantic.Field(
+        default=0,
+        validation_alias=pydantic.AliasChoices("file_id", "map_steps"),
+    )
     type_id: Literal[-7] = -7
 
 
@@ -1733,6 +1750,8 @@ class RfcavityStructureWakefield(InputElement, element_id=-41, has_input_file=Tr
     map_steps : int
         Number of "map steps". Each half-step involves computing a map for that
         half-element which is computed by numerical integration.
+    scale : float
+        Scaling factor applied to the read-in wakefield when enabled.
     file_id : float
         The file ID to load from.
     enable_wakefield : float
@@ -1744,7 +1763,10 @@ class RfcavityStructureWakefield(InputElement, element_id=-41, has_input_file=Tr
     map_steps: int = 0
     type_id: Literal[-41] = -41
 
-    unused: float = 1.0
+    scale: float = pydantic.Field(
+        default=1.0,
+        validation_alias=pydantic.AliasChoices("scale", "unused"),
+    )
     file_id: float = 0.0
     enable_wakefield: float = 0.0
 

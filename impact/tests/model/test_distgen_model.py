@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 
 import pytest
 from distgen import Generator
@@ -11,15 +11,16 @@ from impact.model.distgen.model import LUMEDistgenModel
 from impact.model.actions import HeaderAction
 
 
-DISTGEN_YAML = os.path.join(
-    os.path.dirname(__file__),
-    "../../../docs/examples/templates/lcls_injector/distgen.yaml",
+DISTGEN_YAML = (
+    Path(__file__).resolve().parents[3]
+    / "docs/examples/templates/lcls_injector/distgen.yaml"
 )
 
 
 @pytest.fixture(scope="module")
 def gen():
-    return Generator(DISTGEN_YAML)
+    # distgen assumes non-string input is a parsed yaml as dictionary...
+    return Generator(str(DISTGEN_YAML))
 
 
 @pytest.fixture(scope="module")

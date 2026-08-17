@@ -39,7 +39,6 @@ import h5py
 import numpy as np
 
 
-import functools
 from time import time
 from copy import deepcopy
 import os
@@ -1078,8 +1077,37 @@ class Impact(CommandWrapper):
             self.configured = False
 
     @classmethod
-    @functools.wraps(impact_from_tao)
     def from_tao(cls, tao, fieldmap_style="fourier", n_coef=30, **kwargs):
+        """
+        Create a complete Impact object from a running Pytao Tao instance.
+
+        Wraps impact.interfaces.bmad.impact_from_tao
+
+        Parameters
+        ----------
+        tao: Tao object
+
+        fieldmap_style: str, default = 'fourier'
+            Style of fieldmap to create. One of: ('fourier', 'derivatives').
+
+        emfield_cartesian_eles: str or list, default = "EM_FIELD::*"
+            Matching string or list of element names to be converted to Impact-T emfield_cartesian elements.
+
+        solrf_eles: str or list, default = 'E_GUN::*,SOLENOID::*,LCAVITY::*'
+            Matching string or list for element names to be converted to Impact-T solrf elements.
+
+        quadrupole_eles: str or list, default = 'quad::*'
+            Matching string or list for element names to be converted to Impact-T quadrupole elements.
+
+        write_beam_eles: str or list, default = 'monitor::*'
+            Matching string or list for element names to be converted to Impact-T write beam elements.
+            Note that there is a limit to the number of these that can be created
+
+        Returns
+        -------
+        impact_object: Impact
+            Converted Impact object
+        """
         return impact_from_tao(
             tao, fieldmap_style=fieldmap_style, n_coef=n_coef, **kwargs
         )

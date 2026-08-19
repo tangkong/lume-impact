@@ -1085,28 +1085,32 @@ class Impact(CommandWrapper):
 
         Parameters
         ----------
-        tao: Tao object
+        tao : Tao
+            Initialized Tao object
 
-        fieldmap_style: str, default = 'fourier'
-            Style of fieldmap to create. One of: ('fourier', 'derivatives').
+        fieldmap_style : str, optional
+            Style of fieldmap to create. One of: ('fourier', 'derivatives'), by default = 'fourier'
 
-        emfield_cartesian_eles: str or list, default = "EM_FIELD::*"
-            Matching string or list of element names to be converted to Impact-T emfield_cartesian elements.
+        n_coef : int, optional
+            a number of fourier (?) coefficients, by default 30
 
-        solrf_eles: str or list, default = 'E_GUN::*,SOLENOID::*,LCAVITY::*'
-            Matching string or list for element names to be converted to Impact-T solrf elements.
+        emfield_cartesian_eles : str or list[str], optional
+            Matching string or list of element names to be converted to Impact-T emfield_cartesian elements, by default = "EM_FIELD::*"
 
-        quadrupole_eles: str or list, default = 'quad::*'
-            Matching string or list for element names to be converted to Impact-T quadrupole elements.
+        solrf_eles : str or list[str], optional
+            Matching string or list of element names to be converted to Impact-T solrf elements, by default = 'E_GUN::*,SOLENOID::*,LCAVITY::*'
 
-        write_beam_eles: str or list, default = 'monitor::*'
-            Matching string or list for element names to be converted to Impact-T write beam elements.
-            Note that there is a limit to the number of these that can be created
+        quadrupole_eles : str or list[str], optional
+            Matching string or list of element names to be converted to Impact-T quadrupole elements, by default = 'quad::*'
+
+        write_beam_eles : str or list[str], optional
+            Matching string or list of element names to be converted to Impact-T write beam elements.
+            Note that there is a limit to the number of these that can be created.  By default = 'monitor::*'
 
         Returns
         -------
-        impact_object: Impact
-            Converted Impact object
+        Impact
+            Initialized Impact object
         """
         return impact_from_tao(
             tao, fieldmap_style=fieldmap_style, n_coef=n_coef, **kwargs

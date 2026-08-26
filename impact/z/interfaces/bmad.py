@@ -47,6 +47,7 @@ from ..input import (
     Dipole,
     InputElementMetadata,
     IntegratorTypeSwitch,
+    KickBeamUsingMultipole,
     Multipole,
     Quadrupole,
     RotateBeam,
@@ -388,7 +389,76 @@ def get_cavity_class(tracking_method: str, cavity_type: str) -> CavityClass:
 #     if ele.length > (ele.rf_wavelength/2. * n_cells):
 
 
-def single_element_from_tao_info(
+class ConvertedElement(NamedTuple):
+    ele: AnyInputElement
+    rf_data: np.ndarray | None = None
+
+
+def drift_and_corrector_steps(
+    name: str,
+    length: float,
+    *,
+    metadata: InputElementMetadata,
+    hkick: float = 0.0,
+    vkick: float = 0.0,
+    tilt: float = 0.0,
+    num_steps: int = 1,
+) -> list[AnyInputElement]:
+    """
+    Converts a drift into a series of drift and rotation steps.
+
+    Parameters
+    ----------
+    length : float
+        The drift length.
+    hkick : float, optional
+        The unitless horizontal corrector strength. Defaults to 0.
+    vkick : float, optional
+        The unitless vertical corrector strength. Defaults to 0.
+    num_steps : int, optional
+        The number of steps to divide the drift element into. Defaults to 1.
+
+    Returns
+    -------
+    list
+    """
+
+    L1 = length / num_steps
+    step_hkick = hkick / num_steps
+    step_vkick = vkick / num_steps
+    eles = []
+
+    if tilt:
+        eles.append(RotateBeam(tilt=tilt, name=f"{name}_tilt"))
+
+    def do_kick(step: int, hkick: float, vkick: float):
+        eles.append(KickBeamUsingMultipole(k0=-hkick, name=f"{name}_{step}_hkick"))
+        eles.append(RotateBeam(tilt=math.pi / 2, name=f"{name}_{step}_rotpi2"))
+        eles.append(KickBeamUsingMultipole(k0=-vkick, name=f"{name}_{step}_vkick"))
+        eles.append(RotateBeam(tilt=-math.pi / 2, name=f"{name}_{step}_rot-pi2"))
+
+    # Interleave kicks and drift steps
+    for step in range(num_steps):
+        if step == 0:
+            # First step is half strength
+            hkick = step_hkick / 2
+            vkick = step_vkick / 2
+        else:
+            hkick = step_hkick
+            vkick = step_vkick
+
+        do_kick(step, hkick, vkick)
+        eles.append(Drift(length=L1, metadata=metadata, name=f"{name}_{step}"))
+
+    # Final half step
+    do_kick(num_steps, step_hkick / 2, step_vkick / 2)
+    if tilt:
+        eles.append(RotateBeam(tilt=-tilt, name=f"{name}_-tilt"))
+
+    return eles
+
+
+def elements_from_tao_info(
     ele_id: str | int,
     *,
     info: TaoInfoDict,
@@ -400,9 +470,9 @@ def single_element_from_tao_info(
     integrator_type: IntegratorType = IntegratorType.linear_map,
     ref_time_start: float | None = None,
     has_superpositions: bool = False,
-) -> tuple[AnyInputElement, np.ndarray | None] | None:
+) -> list[ConvertedElement] | None:
     """
-    Convert a Tao element into its corresponding basic Impact input element.
+    Convert a Tao element into its corresponding basic Impact input element(s).
 
     This does not include collimation elements, integrator type changes, and so on.
     For that functionality, see `element_from_tao`.
@@ -466,49 +536,73 @@ def single_element_from_tao_info(
         offset_y = 0.0
 
     if key in DRIFT_ELEMENT_KEYS:
-        return Drift(
-            length=length,
-            name=name,
-            steps=num_steps,
-            map_steps=num_steps,
-            radius=1.0,  # no such thing in bmad, right?
-            metadata=metadata,
-        ), None
+        return [
+            ConvertedElement(
+                ele=Drift(
+                    length=length,
+                    name=name,
+                    steps=num_steps,
+                    map_steps=num_steps,
+                    radius=1.0,  # no such thing in bmad, right?
+                    metadata=metadata,
+                )
+            )
+        ]
 
     if key in {"hkicker", "vkicker", "kicker"}:
-        kick = max(  # integrated field kick in m-T
-            (
-                np.abs(info.get("BL_KICK", 0.0)),
-                np.abs(info.get("BL_VKICK", 0.0)),
-                np.abs(info.get("BL_HKICK", 0.0)),
+        kick = float(info.get("KICK", 0.0))
+        vkick = float(info.get("VKICK", 0.0))
+        hkick = float(info.get("HKICK", 0.0))
+        # integrated field kick in m-T
+        if kick:
+            if key == "hkicker":
+                hkick = kick
+            if key == "vkicker":
+                vkick = kick
+
+        if any((vkick, hkick)):
+            return [
+                ConvertedElement(ele=ele)
+                for ele in drift_and_corrector_steps(
+                    name=name,
+                    length=length,
+                    hkick=hkick,
+                    vkick=vkick,
+                    metadata=metadata,
+                    tilt=float(info.get("TILT", 0.0)),
+                )
+            ]
+
+        return [
+            ConvertedElement(
+                ele=Drift(
+                    length=length,
+                    name=name,
+                    steps=num_steps,
+                    map_steps=num_steps,
+                    radius=1.0,
+                    metadata=metadata,
+                )
             )
-        )
-        if kick > 0.0:
-            raise NotImplementedError(
-                "Kickers with integrated field kick are not supported (bl_kick, bl_vkick, bl_hkick)"
-            )
-        return Drift(
-            length=length,
-            name=name,
-            steps=num_steps,
-            map_steps=num_steps,
-            radius=1.0,
-            metadata=metadata,
-        ), None
+        ]
 
     if key == "sbend":
         angle = float(info["ANGLE"])
 
         if angle == 0.0:
             # Dipoles in Impact-Z don't work if they have zero angle
-            return Drift(
-                length=length,
-                name=name,
-                steps=num_steps,
-                map_steps=num_steps,
-                radius=1.0,
-                metadata=metadata,
-            ), None
+            return [
+                ConvertedElement(
+                    ele=Drift(
+                        length=length,
+                        name=name,
+                        steps=num_steps,
+                        map_steps=num_steps,
+                        radius=1.0,
+                        metadata=metadata,
+                    )
+                )
+            ]
 
         if np.abs(info["Z_OFFSET_TOT"]) > 0.0:
             raise NotImplementedError("Z offset not supported for SBend")
@@ -520,27 +614,31 @@ def single_element_from_tao_info(
                 f"Impact-Z, this should be 'Full'"
             )
 
-        return Dipole(
-            name=name,
-            length=length,
-            steps=num_steps,
-            map_steps=num_steps,
-            angle=angle,  # rad
-            k1=float(info["K1"]),
-            input_switch=201.0 if csr else 0.0,
-            hgap=float(info["HGAP"]),
-            e1=float(info["E1"]),
-            e2=float(info["E2"]),
-            entrance_curvature=0.0,
-            exit_curvature=0.0,
-            fint=float(info["FINT"]),
-            # misalignment_error_x=info["X_OFFSET_TOT"],
-            # misalignment_error_y=info["Y_OFFSET_TOT"],
-            # rotation_error_x=rotation_error_x,
-            # rotation_error_y=rotation_error_y,
-            # rotation_error_z=rotation_error_z,
-            metadata=metadata,
-        ), None
+        return [
+            ConvertedElement(
+                ele=Dipole(
+                    name=name,
+                    length=length,
+                    steps=num_steps,
+                    map_steps=num_steps,
+                    angle=angle,  # rad
+                    k1=float(info["K1"]),
+                    input_switch=201.0 if csr else 0.0,
+                    hgap=float(info["HGAP"]),
+                    e1=float(info["E1"]),
+                    e2=float(info["E2"]),
+                    entrance_curvature=0.0,
+                    exit_curvature=0.0,
+                    fint=float(info["FINT"]),
+                    # misalignment_error_x=info["X_OFFSET_TOT"],
+                    # misalignment_error_y=info["Y_OFFSET_TOT"],
+                    # rotation_error_x=rotation_error_x,
+                    # rotation_error_y=rotation_error_y,
+                    # rotation_error_z=rotation_error_z,
+                    metadata=metadata,
+                )
+            )
+        ]
 
     if key in {"sextupole", "octupole", "thick_multipole"}:
         if np.abs(info["Z_OFFSET_TOT"]) > 0.0:
@@ -571,22 +669,26 @@ def single_element_from_tao_info(
             )
             field_strength = b4_gradient
 
-        return Multipole(
-            name=name,
-            length=length,
-            steps=num_steps,
-            map_steps=num_steps,
-            multipole_type=multipole_type,
-            field_strength=field_strength,
-            file_id=-1,  # TODO?
-            radius=radius,
-            misalignment_error_x=offset_x,
-            misalignment_error_y=offset_y,
-            rotation_error_x=rotation_error_x,
-            rotation_error_y=rotation_error_y,
-            rotation_error_z=rotation_error_z,
-            metadata=metadata,
-        ), None
+        return [
+            ConvertedElement(
+                ele=Multipole(
+                    name=name,
+                    length=length,
+                    steps=num_steps,
+                    map_steps=num_steps,
+                    multipole_type=multipole_type,
+                    field_strength=field_strength,
+                    file_id=-1,  # TODO?
+                    radius=radius,
+                    misalignment_error_x=offset_x,
+                    misalignment_error_y=offset_y,
+                    rotation_error_x=rotation_error_x,
+                    rotation_error_y=rotation_error_y,
+                    rotation_error_z=rotation_error_z,
+                    metadata=metadata,
+                )
+            )
+        ]
 
     if key == "wiggler":
         if np.abs(info["Z_OFFSET_TOT"]) > 0.0:
@@ -595,24 +697,28 @@ def single_element_from_tao_info(
         n_period = int(info["N_PERIOD"])
         num_steps = max((num_steps, 10 * n_period))
 
-        return Wiggler(
-            name=name,
-            length=length,
-            steps=num_steps,
-            map_steps=num_steps,
-            wiggler_type=WigglerType.planar,
-            max_field_strength=float(info["B_MAX"]),
-            period=float(info["L_PERIOD"]),
-            kx=float(info["KX"]),
-            file_id=-1,  # TODO?
-            radius=radius,
-            misalignment_error_x=offset_x,
-            misalignment_error_y=offset_y,
-            rotation_error_x=rotation_error_x,
-            rotation_error_y=rotation_error_y,
-            rotation_error_z=rotation_error_z,
-            metadata=metadata,
-        ), None
+        return [
+            ConvertedElement(
+                ele=Wiggler(
+                    name=name,
+                    length=length,
+                    steps=num_steps,
+                    map_steps=num_steps,
+                    wiggler_type=WigglerType.planar,
+                    max_field_strength=float(info["B_MAX"]),
+                    period=float(info["L_PERIOD"]),
+                    kx=float(info["KX"]),
+                    file_id=-1,  # TODO?
+                    radius=radius,
+                    misalignment_error_x=offset_x,
+                    misalignment_error_y=offset_y,
+                    rotation_error_x=rotation_error_x,
+                    rotation_error_y=rotation_error_y,
+                    rotation_error_z=rotation_error_z,
+                    metadata=metadata,
+                )
+            )
+        ]
 
     if key == "quadrupole":
         if np.abs(info["Z_OFFSET_TOT"]) > 0.0:
@@ -622,48 +728,56 @@ def single_element_from_tao_info(
             IntegratorType.linear_map: float(info["K1"]),
             IntegratorType.runge_kutta: float(info["B1_GRADIENT"]),
         }[integrator_type]
-        return Quadrupole(
-            name=name,
-            length=length,
-            steps=num_steps,
-            map_steps=num_steps,
-            # The gradient of the quadrupole magnetic field, measured in Tesla per meter.
-            k1=k1,
-            # file_id : float
-            #     An ID for the input gradient file. Determines profile behavior:
-            #     if greater than 0, a fringe field profile is read; if less than -10,
-            #     a linear transfer map of an undulator is used; if between -10 and 0,
-            #     it's the k-value linear transfer map; if equal to 0, it uses the linear
-            #     transfer map with the gradient.
-            file_id=-1,
-            # The radius of the quadrupole, measured in meters.
-            radius=radius,  # TODO is this the aperture radius?
-            misalignment_error_x=offset_x,
-            misalignment_error_y=offset_y,
-            rotation_error_x=rotation_error_x,
-            rotation_error_y=rotation_error_y,
-            rotation_error_z=rotation_error_z,
-            metadata=metadata,
-        ), None
+        return [
+            ConvertedElement(
+                ele=Quadrupole(
+                    name=name,
+                    length=length,
+                    steps=num_steps,
+                    map_steps=num_steps,
+                    # The gradient of the quadrupole magnetic field, measured in Tesla per meter.
+                    k1=k1,
+                    # file_id : float
+                    #     An ID for the input gradient file. Determines profile behavior:
+                    #     if greater than 0, a fringe field profile is read; if less than -10,
+                    #     a linear transfer map of an undulator is used; if between -10 and 0,
+                    #     it's the k-value linear transfer map; if equal to 0, it uses the linear
+                    #     transfer map with the gradient.
+                    file_id=-1,
+                    # The radius of the quadrupole, measured in meters.
+                    radius=radius,  # TODO is this the aperture radius?
+                    misalignment_error_x=offset_x,
+                    misalignment_error_y=offset_y,
+                    rotation_error_x=rotation_error_x,
+                    rotation_error_y=rotation_error_y,
+                    rotation_error_z=rotation_error_z,
+                    metadata=metadata,
+                )
+            )
+        ]
     if key == "solenoid":
         if np.abs(info["Z_OFFSET_TOT"]) > 0.0:
             raise NotImplementedError("Z offset not supported for Solenoid")
 
-        return Solenoid(
-            name=name,
-            length=length,
-            steps=num_steps,
-            map_steps=num_steps,
-            Bz0=float(info["BS_FIELD"]),
-            file_id=-1,  # TODO?
-            radius=radius,  # TODO arbitrary
-            misalignment_error_x=offset_x,
-            misalignment_error_y=offset_y,
-            rotation_error_x=rotation_error_x,
-            rotation_error_y=rotation_error_y,
-            rotation_error_z=rotation_error_z,
-            metadata=metadata,
-        ), None
+        return [
+            ConvertedElement(
+                ele=Solenoid(
+                    name=name,
+                    length=length,
+                    steps=num_steps,
+                    map_steps=num_steps,
+                    Bz0=float(info["BS_FIELD"]),
+                    file_id=-1,  # TODO?
+                    radius=radius,  # TODO arbitrary
+                    misalignment_error_x=offset_x,
+                    misalignment_error_y=offset_y,
+                    rotation_error_x=rotation_error_x,
+                    rotation_error_y=rotation_error_y,
+                    rotation_error_z=rotation_error_z,
+                    metadata=metadata,
+                )
+            )
+        ]
 
     if key == "lcavity":
         if np.abs(info["Z_OFFSET_TOT"]) > 0.0:
@@ -679,23 +793,27 @@ def single_element_from_tao_info(
                 logger.warning(f"{offset_x=} for CCL element {name!r} may not work")
             if cls is CCL and np.abs(offset_y) > 0:
                 logger.warning(f"{offset_y=} for CCL element {name!r} may not work")
-            return cls(
-                name=name,
-                length=length,
-                steps=num_steps,
-                map_steps=num_steps,
-                file_id=-1.0,  # TODO: same for all cavity types?
-                rf_frequency=float(info["RF_FREQUENCY"]),
-                phase_deg=float(info["PHI0"]) * 360.0,
-                radius=radius,  # TODO is this the aperture radius?
-                field_scaling=float(info["GRADIENT"]),
-                misalignment_error_x=offset_x,
-                misalignment_error_y=offset_y,
-                rotation_error_x=rotation_error_x,
-                rotation_error_y=rotation_error_y,
-                rotation_error_z=-rotation_error_z,
-                metadata=metadata,
-            ), None
+            return [
+                ConvertedElement(
+                    ele=cls(
+                        name=name,
+                        length=length,
+                        steps=num_steps,
+                        map_steps=num_steps,
+                        file_id=-1.0,  # TODO: same for all cavity types?
+                        rf_frequency=float(info["RF_FREQUENCY"]),
+                        phase_deg=float(info["PHI0"]) * 360.0,
+                        radius=radius,  # TODO is this the aperture radius?
+                        field_scaling=float(info["GRADIENT"]),
+                        misalignment_error_x=offset_x,
+                        misalignment_error_y=offset_y,
+                        rotation_error_x=rotation_error_x,
+                        rotation_error_y=rotation_error_y,
+                        rotation_error_z=-rotation_error_z,
+                        metadata=metadata,
+                    )
+                )
+            ]
         if cls is SolenoidWithRFCavity:
             if has_superpositions:
                 raise NotImplementedError(
@@ -724,27 +842,36 @@ def single_element_from_tao_info(
                 n_cell=n_cell,
                 L_pad=L_pad,
             )
-            return cls(
-                name=name,
-                length=length,
-                steps=n_cell * 36,  # heuristic that seems to work
-                map_steps=num_steps,
-                file_id=1.0,
-                rf_frequency=rf_frequency,
-                phase_deg=(phi0 + phi0_autoscale - phi0_ref + 0.25 + phi0_pad) * 360.0,
-                radius=radius,
-                field_scaling=-2.0 * float(info["GRADIENT"]) * length / L_active,
-                misalignment_error_x=offset_x,
-                misalignment_error_y=offset_y,
-                rotation_error_x=rotation_error_x,
-                rotation_error_y=rotation_error_y,
-                rotation_error_z=-rotation_error_z,
-                aperture_size_for_wakefield=0.0,
-                bz0=0.0,
-                gap_size_for_wakefield=0.0,
-                length_for_wakefield=0.0,
-                metadata=metadata,
-            ), rf_data
+            return [
+                ConvertedElement(
+                    ele=cls(
+                        name=name,
+                        length=length,
+                        steps=n_cell * 36,  # heuristic that seems to work
+                        map_steps=num_steps,
+                        file_id=1.0,
+                        rf_frequency=rf_frequency,
+                        phase_deg=(phi0 + phi0_autoscale - phi0_ref + 0.25 + phi0_pad)
+                        * 360.0,
+                        radius=radius,
+                        field_scaling=-2.0
+                        * float(info["GRADIENT"])
+                        * length
+                        / L_active,
+                        misalignment_error_x=offset_x,
+                        misalignment_error_y=offset_y,
+                        rotation_error_x=rotation_error_x,
+                        rotation_error_y=rotation_error_y,
+                        rotation_error_z=-rotation_error_z,
+                        aperture_size_for_wakefield=0.0,
+                        bz0=0.0,
+                        gap_size_for_wakefield=0.0,
+                        length_for_wakefield=0.0,
+                        metadata=metadata,
+                    ),
+                    rf_data=rf_data,
+                )
+            ]
         raise RuntimeError(f"Unexpected cavity type: {cls=}")
 
     if length > 0.0:
@@ -942,7 +1069,7 @@ def element_from_tao(
     ref_time_start = float(ele_ref_time_start["ele_ref_time_start"])
 
     try:
-        res = single_element_from_tao_info(
+        elements = elements_from_tao_info(
             ele_id=ele_id,
             info=info,
             multipole_info=multipole_info,
@@ -957,12 +1084,17 @@ def element_from_tao(
     except NotImplementedError as ex:
         raise NotImplementedError(f"Element {name!r} (id={ele_id}): {ex}")  # from None
 
-    if res is None:
+    if elements is None:
         return [], {}
 
-    inner_ele, rfdata = res
-    data = {}
+    if len(elements) > 1:
+        # TODO: this is only for correctors currently
+        assert not any(ele.rf_data for ele in elements)
+        return [ele.ele for ele in elements], {}
 
+    inner_ele, rfdata = elements[0]
+
+    data = {}
     assert "bmad_sc" in inner_ele.metadata
     assert "bmad_csr" in inner_ele.metadata
 

@@ -159,16 +159,18 @@ def compare_sxy(
         ]:
             if adj is not None:
                 cmd = f"set ele {ele_to_move} {attr} = {adj}"
-                print("!!!", cmd)
+                print(cmd)
                 tao.cmd(cmd, raises=True)
 
         print("\n".join(tao.cmd(f"show ele {ele_to_move}")))
 
         input = ImpactZInput.from_tao(tao, integrator_type=integrator_type)
 
-        if input.integrator_type == IntegratorType.runge_kutta:
-            if integrator_type == IntegratorType.linear_map:
-                pytest.skip("Runge-kutta required")
+        if (
+            input.integrator_type == IntegratorType.runge_kutta
+            and integrator_type == IntegratorType.linear_map
+        ):
+            pytest.skip("Runge-kutta required")
 
         input.integrator_type = integrator_type
 

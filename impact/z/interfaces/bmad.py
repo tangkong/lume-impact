@@ -25,7 +25,7 @@ from beamphysics import ParticleGroup
 from beamphysics.particles import c_light
 from beamphysics.species import charge_state, mass_of
 from pytao import Tao, TaoCommandError
-from typing_extensions import Literal, TypeAlias
+from typing_extensions import Literal, NotRequired, TypeAlias
 
 from ..constants import (
     BoundaryType,
@@ -274,7 +274,7 @@ def get_element_radius(*limits: float, default=0.03) -> float:
 
 class EleMultipoles(TypedDict):
     multipoles_on: bool
-    scale_multipoles: bool
+    scale_multipoles: NotRequired[bool]
     data: list[dict[str, float | int]]
 
 
@@ -304,6 +304,10 @@ def get_multipole_info(tao: Tao, ele_id: str | int) -> MultipoleInfo | None:
     Returns
     -------
     MultipoleInfo or None
+        The effective multipole strength.  When ``scale_multipoles = T`` in
+        Bmad, ``Bn`` is the strength after Bmad scales the raw value by the
+        element strength (a no-op for element types Bmad does not scale,
+        such as thick_multipole).
 
     Raises
     ------
@@ -319,15 +323,19 @@ def get_multipole_info(tao: Tao, ele_id: str | int) -> MultipoleInfo | None:
     if len(data) > 1:
         raise ValueError("Only one multipole allowed")
 
-    if info["scale_multipoles"]:
-        raise ValueError("scale_multipoles not supported")
-
     d0 = data[0]
-    if d0["An"] != 0.0:
+    if info.get("scale_multipoles", False):
+        an = d0.get("An (Scaled)", d0["An"])
+        bn = d0.get("Bn (Scaled)", d0["Bn"])
+    else:
+        an = d0["An"]
+        bn = d0["Bn"]
+
+    if an != 0.0:
         raise ValueError("An of 0 only supported for multipoles for now")
 
     order = MultipoleOrder(d0["index"])
-    return MultipoleInfo(order=order, Bn=d0["Bn"])  # May need another factor
+    return MultipoleInfo(order=order, Bn=float(bn))
 
 
 CavityClass: TypeAlias = Union[

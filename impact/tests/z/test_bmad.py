@@ -85,6 +85,7 @@ rotation_comparison_lattices = [
 comparison_lattices_without_rotation = [
     "dipole.bmad",
     "optics_matching.bmad",
+    "decapole_scaled.bmad",
 ]
 
 positron_lattices = [
@@ -135,10 +136,18 @@ def compare_sxy(
     pz = np.sqrt(energy**2 - mec2**2)
 
     species = "positron" if lattice.name in positron_lattices else "electron"
-    P0 = single_particle(x=1e-3, pz=pz, species=species)
+    # P0 = single_particle(x=1e-3, pz=pz, species=species)
+    P0 = single_particle(
+        x=1e-3,
+        px=2e-3 * pz,
+        y=2e-3,
+        py=3e-3 * pz,
+        pz=(1 - 0.0001) * pz,
+        species=species,
+    )
 
     with Tao(lattice_file=lattice, noplot=True) as tao:
-        tao.cmd("set beam comb_ds_save = 0.1")
+        tao.cmd("set beam comb_ds_save = 0.01")
         set_initial_particles(tao, P0, path=tmp_path)
 
         for attr, adj in [
@@ -491,8 +500,9 @@ def test_check_initial_particles(tmp_path: pathlib.Path) -> None:
     ],
 )
 def test_kicker_with_nonzero_field_kick(tmp_path: pathlib.Path, kicker: str) -> None:
-    with pytest.raises(NotImplementedError):
-        with tao_with_lattice(
+    with (
+        pytest.raises(NotImplementedError),
+        tao_with_lattice(
             tmp_path=tmp_path,
             contents=f"""\
                 no_digested
@@ -508,5 +518,6 @@ def test_kicker_with_nonzero_field_kick(tmp_path: pathlib.Path, kicker: str) -> 
                 lat: line = (kick)
                 use, lat
             """,
-        ) as tao:
-            ImpactZInput.from_tao(tao)
+        ) as tao,
+    ):
+        ImpactZInput.from_tao(tao)

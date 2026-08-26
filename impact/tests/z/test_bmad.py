@@ -80,6 +80,7 @@ rotation_comparison_lattices = [
     "decapole.bmad",
     "lcavity.bmad",
     "lcavity_rf.bmad",
+    "kickers.bmad",
 ]
 
 comparison_lattices_without_rotation = [
@@ -182,7 +183,7 @@ def compare_sxy(
 
     I = ImpactZ(input)
     print(I.input)
-    output = I.run()
+    output = I.run(verbose=True)
 
     zP0 = output.particles["initial_particles"]
 
@@ -492,34 +493,34 @@ def test_check_initial_particles(tmp_path: pathlib.Path) -> None:
     assert P0_written == Pin
 
 
-@pytest.mark.parametrize(
-    "kicker",
-    [
-        "kick: hkicker, l = 0.6, bl_kick=1e-3",
-        "kick: vkicker, l = 0.6, bl_kick=1e-3",
-        "kick: kicker, l = 0.6, bl_hkick=1e-3",
-        "kick: kicker, l = 0.6, bl_vkick=1e-3",
-    ],
-)
-def test_kicker_with_nonzero_field_kick(tmp_path: pathlib.Path, kicker: str) -> None:
-    with (
-        pytest.raises(NotImplementedError),
-        tao_with_lattice(
-            tmp_path=tmp_path,
-            contents=f"""\
-                no_digested
-                beginning[beta_a] = 10.   ! m  a-mode beta function
-                beginning[beta_b] = 10.   ! m  b-mode beta function
-                beginning[e_tot] = 10e6   ! eV
-
-                parameter[geometry] = open
-                parameter[particle] = electron
-
-                {kicker}
-
-                lat: line = (kick)
-                use, lat
-            """,
-        ) as tao,
-    ):
-        ImpactZInput.from_tao(tao)
+# @pytest.mark.parametrize(
+#     "kicker",
+#     [
+#         "kick: hkicker, l = 0.6, bl_kick=1e-3",
+#         "kick: vkicker, l = 0.6, bl_kick=1e-3",
+#         "kick: kicker, l = 0.6, bl_hkick=1e-3",
+#         "kick: kicker, l = 0.6, bl_vkick=1e-3",
+#     ],
+# )
+# def test_kicker_with_nonzero_field_kick(tmp_path: pathlib.Path, kicker: str) -> None:
+#     with (
+#         pytest.raises(NotImplementedError),
+#         tao_with_lattice(
+#             tmp_path=tmp_path,
+#             contents=f"""\
+#                 no_digested
+#                 beginning[beta_a] = 10.   ! m  a-mode beta function
+#                 beginning[beta_b] = 10.   ! m  b-mode beta function
+#                 beginning[e_tot] = 10e6   ! eV
+#
+#                 parameter[geometry] = open
+#                 parameter[particle] = electron
+#
+#                 {kicker}
+#
+#                 lat: line = (kick)
+#                 use, lat
+#             """,
+#         ) as tao,
+#     ):
+#         ImpactZInput.from_tao(tao)

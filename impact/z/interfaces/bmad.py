@@ -448,7 +448,15 @@ def drift_and_corrector_steps(
             vkick = step_vkick
 
         do_kick(step, hkick, vkick)
-        eles.append(Drift(length=L1, metadata=metadata, name=f"{name}_{step}"))
+        eles.append(
+            Drift(
+                length=L1,
+                steps=num_steps,
+                map_steps=num_steps,
+                metadata=metadata,
+                name=f"{name}_{step}",
+            )
+        )
 
     # Final half step
     do_kick(num_steps, step_hkick / 2, step_vkick / 2)
@@ -569,7 +577,8 @@ def elements_from_tao_info(
                     hkick=hkick,
                     vkick=vkick,
                     metadata=metadata,
-                    tilt=float(info.get("TILT", 0.0)),
+                    num_steps=num_steps,
+                    tilt=rotation_error_z,
                 )
             ]
 

@@ -548,34 +548,44 @@ def test_check_initial_particles(tmp_path: pathlib.Path) -> None:
     assert P0_written == Pin
 
 
-# @pytest.mark.parametrize(
-#     "kicker",
-#     [
-#         "kick: hkicker, l = 0.6, bl_kick=1e-3",
-#         "kick: vkicker, l = 0.6, bl_kick=1e-3",
-#         "kick: kicker, l = 0.6, bl_hkick=1e-3",
-#         "kick: kicker, l = 0.6, bl_vkick=1e-3",
-#     ],
-# )
-# def test_kicker_with_nonzero_field_kick(tmp_path: pathlib.Path, kicker: str) -> None:
-#     with (
-#         pytest.raises(NotImplementedError),
-#         tao_with_lattice(
-#             tmp_path=tmp_path,
-#             contents=f"""\
-#                 no_digested
-#                 beginning[beta_a] = 10.   ! m  a-mode beta function
-#                 beginning[beta_b] = 10.   ! m  b-mode beta function
-#                 beginning[e_tot] = 10e6   ! eV
-#
-#                 parameter[geometry] = open
-#                 parameter[particle] = electron
-#
-#                 {kicker}
-#
-#                 lat: line = (kick)
-#                 use, lat
-#             """,
-#         ) as tao,
-#     ):
-#         ImpactZInput.from_tao(tao)
+@pytest.mark.parametrize("aperture_at", ["entrance_end", "exit_end"])
+def test_kicker_with_aperture(tmp_path: pathlib.Path, aperture_at: str) -> None:
+    with tao_with_lattice(
+        tmp_path=tmp_path,
+        contents=f"""\
+            no_digested
+            beginning[beta_a] = 10.   ! m  a-mode beta function
+            beginning[beta_b] = 10.   ! m  b-mode beta function
+            beginning[e_tot] = 10e6   ! eV
+
+            parameter[geometry] = open
+            parameter[particle] = electron
+
+            kick: hkicker, l = 0.6, bl_kick = 1e-3, num_steps = 10,
+                x1_limit = 0.01, x2_limit = 0.01, y1_limit = 0.01, y2_limit = 0.01,
+                aperture_at = {aperture_at}
+
+            lat: line = (kick)
+            use, lat
+        """,
+    ) as tao:
+        input = ImpactZInput.from_tao(tao)
+
+    apertures = [
+        idx
+        for idx, ele in enumerate(input.lattice)
+        if isinstance(ele, IZ.CollimateBeam)
+    ]
+    kicks = [
+        idx
+        for idx, ele in enumerate(input.lattice)
+        if isinstance(ele, IZ.KickBeamUsingMultipole)
+    ]
+    assert len(apertures) == 1
+    assert kicks
+
+    (aperture_idx,) = apertures
+    if aperture_at == "entrance_end":
+        assert aperture_idx < min(kicks)
+    else:
+        assert aperture_idx > max(kicks)

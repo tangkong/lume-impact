@@ -81,12 +81,18 @@ rotation_comparison_lattices = [
     "lcavity.bmad",
     "lcavity_rf.bmad",
     "kickers.bmad",
+    "hkicker.bmad",
+    "vkicker.bmad",
+    "kicker.bmad",
 ]
 
 comparison_lattices_without_rotation = [
     "dipole.bmad",
     "optics_matching.bmad",
     "decapole_scaled.bmad",
+    "hkicker.bmad",
+    "vkicker.bmad",
+    "kicker.bmad",
 ]
 
 positron_lattices = [
@@ -147,8 +153,10 @@ def compare_sxy(
         species=species,
     )
 
+    comb_ds_save = 0.01
+
     with Tao(lattice_file=lattice, noplot=True) as tao:
-        tao.cmd("set beam comb_ds_save = 0.01")
+        tao.cmd(f"set beam comb_ds_save = {comb_ds_save}")
         set_initial_particles(tao, P0, path=tmp_path)
 
         for attr, adj in [
@@ -195,6 +203,19 @@ def compare_sxy(
     z = output.stats.z
     x = output.stats.mean_x
     y = output.stats.mean_y
+
+    np.testing.assert_allclose(
+        z[0],
+        s_tao[0],
+        atol=2 * comb_ds_save,
+        err_msg=f"IMPACT-Z and Tao s range start differs: {z[0]} vs {s_tao[0]}",
+    )
+    np.testing.assert_allclose(
+        z[-1],
+        s_tao[-1],
+        atol=2 * comb_ds_save,
+        err_msg=f"IMPACT-Z and Tao s range end differs: {z[-1]} vs {s_tao[-1]}",
+    )
 
     x_tao_interp = np.interp(z, s_tao, x_tao)
     y_tao_interp = np.interp(z, s_tao, y_tao)
@@ -297,6 +318,7 @@ def test_compare_sxy(
         pytest.param(-np.pi / 4, 0.0, 0.0, 0.0, 0.0, id="tilt=-pi/4"),
         pytest.param(np.pi / 2, 0.0, 0.0, 0.0, 0.0, id="tilt=pi/2"),
         pytest.param(-np.pi / 2, 0.0, 0.0, 0.0, 0.0, id="tilt=-pi/2"),
+        pytest.param(0.1, 0.0, 0.0, 0.0, 0.0, id="tilt=0.1"),
         # x_pitch test cases (others zero)
         pytest.param(0.0, 1.0, 0.0, 0.0, 0.0, id="x_pitch=positive"),
         pytest.param(0.0, -1.0, 0.0, 0.0, 0.0, id="x_pitch=negative"),

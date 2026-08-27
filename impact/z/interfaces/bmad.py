@@ -412,9 +412,13 @@ def drift_and_corrector_steps(
     length : float
         The drift length.
     hkick : float, optional
-        The unitless horizontal corrector strength. Defaults to 0.
+        The unitless horizontal corrector strength in the tilted body frame.
+        Defaults to 0.
     vkick : float, optional
-        The unitless vertical corrector strength. Defaults to 0.
+        The unitless vertical corrector strength in the tilted body frame.
+        Defaults to 0.
+    tilt : float, optional
+        Tilt angle.  Defaults to 0.
     num_steps : int, optional
         The number of steps to divide the drift element into. Defaults to 1.
 
@@ -423,13 +427,17 @@ def drift_and_corrector_steps(
     list
     """
 
+    if tilt:
+        # Rotate the kick vector into the lab frame:
+        hkick, vkick = (
+            hkick * math.cos(tilt) - vkick * math.sin(tilt),
+            hkick * math.sin(tilt) + vkick * math.cos(tilt),
+        )
+
     L1 = length / num_steps
     step_hkick = hkick / num_steps
     step_vkick = vkick / num_steps
     eles = []
-
-    if tilt:
-        eles.append(RotateBeam(tilt=tilt, name=f"{name}_tilt"))
 
     def do_kick(step: int, hkick: float, vkick: float):
         eles.append(KickBeamUsingMultipole(k0=-hkick, name=f"{name}_{step}_hkick"))
@@ -460,8 +468,6 @@ def drift_and_corrector_steps(
 
     # Final half step
     do_kick(num_steps, step_hkick / 2, step_vkick / 2)
-    if tilt:
-        eles.append(RotateBeam(tilt=-tilt, name=f"{name}_-tilt"))
 
     return eles
 
@@ -521,9 +527,10 @@ def elements_from_tao_info(
     x2_limit = float(info.get("X2_LIMIT", 0.0))
     y1_limit = float(info.get("Y1_LIMIT", 0.0))
     y2_limit = float(info.get("Y2_LIMIT", 0.0))
+    tilt_tot = float(info.get("TILT_TOT", 0.0))
     rotation_error_x = float(info.get("X_PITCH_TOT", 0.0))
     rotation_error_y = float(info.get("Y_PITCH_TOT", 0.0))
-    rotation_error_z = -float(info.get("TILT_TOT", 0.0))
+    rotation_error_z = -tilt_tot
     num_steps = int(info.get("NUM_STEPS", 10))
     radius = get_element_radius(x1_limit, x2_limit, y1_limit, y2_limit, default=0.03)
     csr = ele_csr_enabled(ele_methods_info, global_csr_flag)
@@ -578,7 +585,7 @@ def elements_from_tao_info(
                     vkick=vkick,
                     metadata=metadata,
                     num_steps=num_steps,
-                    tilt=rotation_error_z,
+                    tilt=tilt_tot,
                 )
             ]
 

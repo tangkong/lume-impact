@@ -122,6 +122,15 @@ PITCH_DISCREPANCY_LATTICES = {
     "decapole.bmad": ("x_pitch",),
 }
 
+# Colorblind-safe colors for the comparison figures.  Tao vs IMPACT-Z are
+# additionally distinguished by solid vs dashed lines.
+TAO_COLOR = "#2a78d6"
+IZ_COLOR = "#eb6834"
+DELTA_X_COLOR = "#1baf7a"
+DELTA_Y_COLOR = "#4a3aa7"
+PASS_COLOR = "#008300"
+FAIL_COLOR = "#e34948"
+
 
 @pytest.fixture(
     params=[IntegratorType.linear_map, IntegratorType.runge_kutta],
@@ -163,11 +172,6 @@ def compare_sxy(
     ):
         pytest.skip("Not yet working?")
 
-    discrepant_axes = PITCH_DISCREPANCY_LATTICES.get(lattice.name, ())
-    if ("x_pitch" in discrepant_axes and x_pitch) or (
-        "y_pitch" in discrepant_axes and y_pitch
-    ):
-        pytest.xfail("TODO: pitch discrepancy vs Bmad for higher-order multipoles")
     energy = 10e6
     pz = np.sqrt(energy**2 - mec2**2)
 
@@ -250,57 +254,57 @@ def compare_sxy(
     y_tao_interp = np.interp(z, s_tao, y_tao)
 
     atol = ORBIT_ATOL.get(lattice.name, DEFAULT_ORBIT_ATOL)
-    x_pass = np.allclose(x, x_tao_interp, rtol=0.0, atol=atol)
-    y_pass = np.allclose(y, y_tao_interp, rtol=0.0, atol=atol)
-    passed = x_pass and y_pass
-    x_pass_fail = "Pass" if x_pass else "FAIL"
-    y_pass_fail = "Pass" if y_pass else "FAIL"
-    pass_fail = "Pass" if passed else "FAIL"
+    dx = x - x_tao_interp
+    dy = y - y_tao_interp
+    max_dx = float(np.max(np.abs(dx)))
+    max_dy = float(np.max(np.abs(dy)))
+    passed = max_dx <= atol and max_dy <= atol
 
-    fig, (ax0, ax1, ax2) = plt.subplots(3, figsize=(12, 8))
-    fig.suptitle(f"{request.node.name}\n{pass_fail}")
-    ax0.plot(z, x, color="red")
-    ax0.plot(s_tao, x_tao, "--", color="blue")
-    ax0.scatter(z, x_tao_interp, marker="o", color="purple")
+    fig, (ax_x, ax_y, ax_r, ax_lat) = plt.subplots(
+        4,
+        1,
+        sharex=True,
+        figsize=(12, 9),
+        height_ratios=[2, 2, 1.6, 1.0],
+        constrained_layout=True,
+    )
+    fig.suptitle(request.node.name)
 
-    if not x_pass:
-        ax0_right = ax0.twinx()
-        delta = x - x_tao_interp
-        # Plot the delta values on the right y-axis
-        ax0_right.plot(z, delta, color="gray", alpha=0.7)
-        ax0_right.set_ylabel("Delta (IZ - Tao)")
-        max_abs_delta = max(abs(delta)) if len(delta) > 0 else 1e-6
-        ax0_right.set_ylim(-max_abs_delta * 1.1, max_abs_delta * 1.1)
+    for ax, tao_v, iz_v, label in ((ax_x, x_tao, x, "x"), (ax_y, y_tao, y, "y")):
+        ax.plot(s_tao, tao_v, "-", color=TAO_COLOR, lw=2, label="Tao")
+        ax.plot(z, iz_v, "--", color=IZ_COLOR, lw=2, label="IMPACT-Z")
+        ax.set_ylabel(rf"$\langle {label} \rangle$ (m)")
+        ax.grid(alpha=0.25)
+    ax_x.legend(loc="best", fontsize=9)
 
-    ax0.set_ylabel(rf"$x$ (m) {x_pass_fail}")
+    ax_r.axhspan(-atol, atol, color="0.92", zorder=0, label=rf"$\pm$atol = {atol:g}")
+    ax_r.axhline(0.0, color="0.6", lw=0.8, zorder=1)
+    ax_r.plot(z, dx, "-", color=DELTA_X_COLOR, lw=2, label=r"$\Delta x$")
+    ax_r.plot(z, dy, "--", color=DELTA_Y_COLOR, lw=2, label=r"$\Delta y$")
+    rmax = max(1.3 * atol, 1.15 * max(max_dx, max_dy))
+    ax_r.set_ylim(-rmax, rmax)
+    ax_r.set_ylabel("IZ $-$ Tao (m)")
+    ax_r.legend(loc="best", fontsize=9, ncols=3)
+    ax_r.grid(alpha=0.25)
+    ax_r.set_title(
+        f"{'PASS' if passed else 'FAIL'}:  "
+        f"max|Δx| = {max_dx:.2e},  max|Δy| = {max_dy:.2e},  atol = {atol:g}",
+        color=PASS_COLOR if passed else FAIL_COLOR,
+    )
 
-    ax1.plot(z, y, color="red", label="IMPACT-Z")
-    ax1.plot(s_tao, y_tao, "--", color="blue", label="Tao")
-    ax1.scatter(z, y_tao_interp, marker="o", color="purple", label="Tao (interpolated)")
-    ax1.set_ylabel(rf"$y$ (m) {y_pass_fail}")
+    I.input.plot(ax=ax_lat)
+    ax_lat.set_xlabel(r"$s$ (m)")
 
-    if not y_pass:
-        ax1_right = ax1.twinx()
-        delta = x - x_tao_interp
-        # Plot the delta values on the right y-axis
-        ax1_right.plot(z, delta, color="gray", alpha=0.7)
-        ax1_right.set_ylabel("Delta (IZ - Tao)")
-        max_abs_delta = max(abs(delta)) if len(delta) > 0 else 1e-6
-        ax1_right.set_ylim(-max_abs_delta * 1.1, max_abs_delta * 1.1)
+    for ax in (ax_x, ax_y, ax_r, ax_lat):
+        ax.set_xlim(min(s_tao.min(), z.min()) - 0.02, max(s_tao.max(), z.max()) + 0.02)
 
-    ax1.set_xlabel(r"$s$ (m)")
-    ax1.legend()
-
-    I.input.plot(ax=ax2)
-
-    for ax in (ax0, ax1, ax2):
-        ax.set_xlim(-0.1, s_tao.max() + 0.1)
-
-    plt.show()
-
-    if not x_pass or not y_pass:
+    if not passed:
         name = request.node.name.replace("/", "_")
         plt.savefig(test_failure_artifacts / f"{name}.png")
+
+    axes = PITCH_DISCREPANCY_LATTICES.get(lattice.name, ())
+    if ("x_pitch" in axes and x_pitch) or ("y_pitch" in axes and y_pitch):
+        pytest.xfail("TODO: pitch discrepancy vs Bmad for higher-order multipoles")
 
     np.testing.assert_allclose(
         actual=x, desired=x_tao_interp, rtol=0.0, atol=atol, err_msg="X differs"

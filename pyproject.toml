@@ -50,7 +50,7 @@ doc = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/ChristopherMayes/lume-impact"
+Homepage = "https://github.com/lume-science/lume-impact"
 
 [tool.setuptools.packages.find]
 where = ["."]

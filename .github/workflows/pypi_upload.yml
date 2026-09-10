@@ -6,7 +6,7 @@ on:
 
 jobs:
   build-n-publish:
-    if: ${{ github.repository == 'ChristopherMayes/lume-impact' }}
+    if: ${{ github.repository == 'lume-science/lume-impact' }}
     name: Build and publish Python distributions to PyPI
     runs-on: ubuntu-latest
 

@@ -1,4 +1,5 @@
 import pathlib
+from typing import Sequence
 import warnings
 from .parsers import (
     parse_impact_input,
@@ -38,7 +39,6 @@ import h5py
 import numpy as np
 
 
-import functools
 from time import time
 from copy import deepcopy
 import os
@@ -237,6 +237,7 @@ class Impact(CommandWrapper):
         self.setup_workdir(workdir)
         self.vprint("Configured to run in:", self.path)
         self.configured = True
+        self.finished = False
 
     def input_parser(self, path):
         return parse_impact_input(path, verbose=self.verbose)
@@ -509,6 +510,7 @@ class Impact(CommandWrapper):
 
         # Clear output
         self.output = {}
+        self.finished = False
 
         # Autophase
         autophase_settings = self.autophase_bookkeeper()
@@ -998,12 +1000,12 @@ class Impact(CommandWrapper):
 
     def plot(
         self,
-        y=["sigma_x", "sigma_y"],
+        y: str | Sequence[str] = ("sigma_x", "sigma_y"),
         x="mean_z",
         xlim=None,
         ylim=None,
         ylim2=None,
-        y2=[],
+        y2: str | Sequence[str] = (),
         nice=True,
         include_layout=True,
         include_labels=False,
@@ -1017,6 +1019,10 @@ class Impact(CommandWrapper):
         **kwargs,
     ):
         """ """
+        if not isinstance(y, str):
+            y = list(y)
+        if not isinstance(y2, str):
+            y2 = list(y2)
 
         # Just plot fieldmaps if there are no stats
         if "stats" not in self.output:
@@ -1071,8 +1077,41 @@ class Impact(CommandWrapper):
             self.configured = False
 
     @classmethod
-    @functools.wraps(impact_from_tao)
     def from_tao(cls, tao, fieldmap_style="fourier", n_coef=30, **kwargs):
+        """
+        Create a complete Impact object from a running Pytao Tao instance.
+
+        Wraps impact.interfaces.bmad.impact_from_tao
+
+        Parameters
+        ----------
+        tao : Tao
+            Initialized Tao object
+
+        fieldmap_style : str, optional
+            Style of fieldmap to create. One of: ('fourier', 'derivatives'), by default = 'fourier'
+
+        n_coef : int, optional
+            a number of fourier (?) coefficients, by default 30
+
+        emfield_cartesian_eles : str or list[str], optional
+            Matching string or list of element names to be converted to Impact-T emfield_cartesian elements, by default = "EM_FIELD::*"
+
+        solrf_eles : str or list[str], optional
+            Matching string or list of element names to be converted to Impact-T solrf elements, by default = 'E_GUN::*,SOLENOID::*,LCAVITY::*'
+
+        quadrupole_eles : str or list[str], optional
+            Matching string or list of element names to be converted to Impact-T quadrupole elements, by default = 'quad::*'
+
+        write_beam_eles : str or list[str], optional
+            Matching string or list of element names to be converted to Impact-T write beam elements.
+            Note that there is a limit to the number of these that can be created.  By default = 'monitor::*'
+
+        Returns
+        -------
+        Impact
+            Initialized Impact object
+        """
         return impact_from_tao(
             tao, fieldmap_style=fieldmap_style, n_coef=n_coef, **kwargs
         )

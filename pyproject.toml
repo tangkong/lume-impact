@@ -3,7 +3,7 @@ build-backend = "setuptools.build_meta"
 requires = ["setuptools>=60", "setuptools_scm[toml]>=8.0"]
 
 [project]
-authors = [{ name = "Christopher Mayes" }]
+authors = [{ name = "Christopher Mayes" }, { name = "Ken Lauer" }]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Natural Language :: English",
@@ -50,7 +50,7 @@ doc = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/ChristopherMayes/lume-impact"
+Homepage = "https://github.com/lume-science/lume-impact"
 
 [tool.setuptools.packages.find]
 where = ["."]

@@ -235,13 +235,10 @@ def native_type(value):
     return getattr(value, "tolist", lambda: value)()
 
 
-"""UTC to ISO 8601 with Local TimeZone information without microsecond"""
-
-
 def isotime():
+    """UTC to ISO 8601 with Local TimeZone information without microsecond"""
     return (
-        datetime.datetime.utcnow()
-        .replace(tzinfo=datetime.timezone.utc)
+        datetime.datetime.now(tz=datetime.timezone.utc)
         .astimezone()
         .replace(microsecond=0)
         .isoformat()

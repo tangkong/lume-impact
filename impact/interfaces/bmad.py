@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import typing
 import warnings
 from collections import Counter
@@ -40,7 +41,7 @@ def tao_unique_names(tao: Tao, ix_uni: int | str = "", ix_branch: int | str = ""
             )
         )
     )
-    ixs = list(sorted(ixs))
+    ixs = sorted(ixs)
 
     names = [tao.ele_head(ix)["name"] for ix in ixs]
 

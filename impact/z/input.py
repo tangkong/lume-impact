@@ -1,56 +1,57 @@
 from __future__ import annotations
 
-from abc import abstractmethod
 import enum
 import logging
 import pathlib
 import shlex
 import types
 import typing
+from abc import abstractmethod
+from collections.abc import Iterable, Sequence
 from typing import (
     Any,
     ClassVar,
-    Iterable,
     Literal,
     NamedTuple,
     TypeVar,
     Union,
     cast,
 )
-from collections.abc import Sequence
 
 import h5py
 import matplotlib.axes
 import numpy as np
 import pydantic
 import pydantic.alias_generators
-from lume import tools as lume_tools
+from beamphysics import ParticleGroup
+from beamphysics.particles import c_light
 from scipy.constants import e
 from typing_extensions import Protocol, runtime_checkable
 
-from beamphysics import ParticleGroup
-from beamphysics.particles import c_light
+from lume import tools as lume_tools
 
-from ..impact import suggested_processor_domain
 from .. import tools
-from . import archive as _archive, parsers
+from ..impact import suggested_processor_domain
+from . import archive as _archive
+from . import parsers
 from .constants import (
     BoundaryType,
+    DiagnosticType,
     DistributionType,
     GPUFlag,
     IntegratorType,
     MultipoleType,
-    DiagnosticType,
     RFCavityCoordinateType,
     RFCavityDataMode,
     WigglerType,
 )
 from .errors import MultipleElementError, NoSuchElementError
 from .particles import ImpactZParticles, detect_species
-from .types import AnyPath, BaseModel, NonzeroFloat, NDArray, PydanticParticleGroup
+from .types import AnyPath, BaseModel, NDArray, NonzeroFloat, PydanticParticleGroup
 
 if typing.TYPE_CHECKING:
     from pytao import Tao
+
     from .interfaces.bmad import Which as TaoWhich
 
 
@@ -78,7 +79,7 @@ class HasOutputFile(Protocol):
     file_id: float
 
 
-InputElementMetadata = dict[str, Union[int, float, str, bool, NDArray]]
+InputElementMetadata = dict[str, int | float | str | bool | NDArray]
 
 
 class InputElement(BaseModel):
@@ -146,7 +147,7 @@ class InputElement(BaseModel):
     def to_line(
         self, *, with_description: bool = True, z_start: float | None = None
     ) -> str:
-        def as_string(v: float | int):
+        def as_string(v: float):
             if isinstance(v, (bool, float)):
                 return f"{v:.20g}"
             if isinstance(v, enum.IntEnum):

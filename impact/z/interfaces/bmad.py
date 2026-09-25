@@ -4,20 +4,18 @@ import logging
 import math
 import pathlib
 import tempfile
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import (
     TYPE_CHECKING,
     Any,
-    Dict,
-    Iterable,
+    Literal,
     NamedTuple,
-    Sequence,
+    TypeAlias,
     TypedDict,
-    Union,
     cast,
 )
-
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -25,20 +23,19 @@ from beamphysics import ParticleGroup
 from beamphysics.particles import c_light
 from beamphysics.species import charge_state, mass_of
 from pytao import Tao, TaoCommandError
-from typing_extensions import Literal, NotRequired, TypeAlias
+from typing_extensions import NotRequired
 
+from ...interfaces.bmad import ele_info, tao_unique_names
+from .. import Drift, ImpactZInput
 from ..constants import (
     BoundaryType,
+    DiagnosticType,
     DistributionType,
     GPUFlag,
     IntegratorType,
     MultipoleType,
-    DiagnosticType,
     WigglerType,
 )
-
-from ...interfaces.bmad import ele_info, tao_unique_names
-from .. import Drift, ImpactZInput
 from ..fieldmaps import make_solenoid_rfcavity_rfdata_simple
 from ..input import (
     CCL,
@@ -81,7 +78,7 @@ class UnusableElementError(Exception): ...
 class UnsupportedElementError(Exception): ...
 
 
-TaoInfoDict: TypeAlias = dict[str, Union[str, float, int]]
+TaoInfoDict: TypeAlias = dict[str, str | float | int]
 
 
 def ele_methods(tao: Tao, ele: str | int, which: str = "model") -> TaoInfoDict:
@@ -1494,8 +1491,8 @@ class ConversionState:
         global_csr_flag = cast(dict, tao.bmad_com())["csr_and_space_charge_on"]
         assert isinstance(global_csr_flag, bool)
 
-        beam_init = cast(Dict[str, Any], tao.beam_init(ix_branch, ix_uni=str(ix_uni)))
-        branch1 = cast(Dict[str, Any], tao.branch1(ix_uni, ix_branch))
+        beam_init = cast(dict[str, Any], tao.beam_init(ix_branch, ix_uni=str(ix_uni)))
+        branch1 = cast(dict[str, Any], tao.branch1(ix_uni, ix_branch))
         branch_particle: str = branch1["param_particle"]
 
         reference_particle_charge = charge_state(branch_particle.lower())

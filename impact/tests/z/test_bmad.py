@@ -16,7 +16,7 @@ import impact.z as IZ
 
 from ...z import ImpactZ, ImpactZInput, ImpactZParticles
 from ...z.constants import IntegratorType
-from .conftest import z_tests, test_failure_artifacts
+from .conftest import test_failure_artifacts, z_tests
 
 lattice_root = z_tests / "bmad"
 

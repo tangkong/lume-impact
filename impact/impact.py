@@ -1,50 +1,43 @@
+import os
 import pathlib
-from typing import Sequence
 import warnings
-from .parsers import (
-    parse_impact_input,
-    load_many_fort,
-    FORT_STAT_TYPES,
-    FORT_DIPOLE_STAT_TYPES,
-    FORT_PARTICLE_TYPES,
-    HEADER_ALIASES,
-    HEADER_UNITS,
-    ELE_UNITS,
-    header_str,
-    header_bookkeeper,
-    parse_impact_particles,
-    load_stats,
-    load_slice_info,
-    fort_files,
-)
-from . import archive, writers, fieldmaps, tools
-from .lattice import ele_dict_from, ele_str, get_stop, set_stop, insert_ele_by_s
-from .control import ControlGroup
-
-from .fieldmaps import lattice_field
-from .plot import plot_stat, plot_layout, plot_stats_with_layout
-from .particles import identify_species, track_to_s, track1_to_s
-from .fast_autophase import fast_autophase_impact
-
-from .interfaces.bmad import impact_from_tao
-
-
-from beamphysics import ParticleGroup
-from beamphysics.units import pmd_unit
-from beamphysics.interfaces.impact import impact_particles_to_particle_data
-
-from scipy.interpolate import interp1d
+from collections.abc import Sequence
+from copy import deepcopy
+from time import time
 
 import h5py
 import numpy as np
-
-
-from time import time
-from copy import deepcopy
-import os
+from beamphysics import ParticleGroup
+from beamphysics.interfaces.impact import impact_particles_to_particle_data
+from beamphysics.units import pmd_unit
+from scipy.interpolate import interp1d
 
 from lume.base import CommandWrapper
 
+from . import archive, fieldmaps, tools, writers
+from .control import ControlGroup
+from .fast_autophase import fast_autophase_impact
+from .fieldmaps import lattice_field
+from .interfaces.bmad import impact_from_tao
+from .lattice import ele_dict_from, ele_str, get_stop, insert_ele_by_s, set_stop
+from .parsers import (
+    ELE_UNITS,
+    FORT_DIPOLE_STAT_TYPES,
+    FORT_PARTICLE_TYPES,
+    FORT_STAT_TYPES,
+    HEADER_ALIASES,
+    HEADER_UNITS,
+    fort_files,
+    header_bookkeeper,
+    header_str,
+    load_many_fort,
+    load_slice_info,
+    load_stats,
+    parse_impact_input,
+    parse_impact_particles,
+)
+from .particles import identify_species, track1_to_s, track_to_s
+from .plot import plot_layout, plot_stat, plot_stats_with_layout
 
 EXTRA_UNITS = {
     "Bz": pmd_unit("T"),
@@ -1259,10 +1252,8 @@ def suggested_processor_domain(nz, ny, nproc):
 
     nr = 2**pr
 
-    if nr < 1:
-        nr = 1
-    if nr > nproc:
-        nr = nproc
+    nr = max(nr, 1)
+    nr = min(nr, nproc)
 
     nc = nproc // nr
 

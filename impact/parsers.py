@@ -363,7 +363,6 @@ def parse_header(lines):
     return d
 
 
-#
 def ix_lattice(lines):
     """
     Find index of beginning of lattice, end of header
@@ -827,7 +826,7 @@ def parse_solrf(line):
     d["zedge"] = parse_float(v[1])
     d["rf_field_scale"] = parse_float(v[2])
     d["rf_frequency"] = parse_float(v[3])
-    d["theta0_deg"] = parse_float(v[4])  #
+    d["theta0_deg"] = parse_float(v[4])
     d["filename"] = "rfdata" + str(int(parse_float(v[5])))
     d["radius"] = parse_float(v[6])
     d2 = parse_misalignments(v[7:12])
